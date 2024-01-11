@@ -1,0 +1,246 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "This template creates a complte architecture",
+    "Parameters": {
+        "vpccidr": {
+            "Description": "vpc cidr range",
+            "Type": "String",
+            "Default": "192.168.0.0/16"
+        },
+        "subnetcidrs": {
+            "Description": "These are subnet ranges",
+            "Type": "CommaDelimitedList",
+            "Default": "192.168.0.0/24,192.168.1.0/24"
+        },
+        "ec2instancetype": {
+            "Description": "instance type",
+            "Type": "String", 
+            "Default": "t2.micro"
+        },
+        "ec2key": {
+            "Description": "key pair for instances",
+            "Type": "AWS::EC2::KeyPair::KeyName",
+        }
+    },
+    "Resources": {
+        "ec2vpc": {
+            "Type": "AWS::EC2::VPC",
+            "Properties": {
+                "CidrBlock": {
+                    "Ref": "vpccidr"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "ec2vpc"
+                    }
+                ]
+            }
+        },
+        "dev": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "AvailabilityZone": "ap-northeast-2a",
+                "VpcId": {
+                    "Ref": "ec2vpc"
+                },
+                "CidrBlock": {
+                    "Fn::Select": [
+                        0,
+                        {
+                            "Ref": "subnetcidrs"
+                        }
+                    ]
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "dev"
+                    }
+                ]
+            }
+        },
+        "pro": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "AvailabilityZone": "ap-northeast-2b",
+                "VpcId": {
+                    "Ref": "ec2vpc"
+                },
+                "CidrBlock": {
+                    "Fn::Select": [
+                        1,
+                        {
+                            "Ref": "subnetcidrs"
+                        }
+                    ]
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "pro"
+                    }
+                ]
+            }
+        },  
+        "ec2InternetGateway": {
+            "Type": "AWS::EC2::InternetGateway",
+            "Properties": {
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "internet"
+                    }
+                ]
+            }
+        },
+        "AttachGateway": {
+            "Type": "AWS::EC2::VPCGatewayAttachment",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "ec2vpc"
+                },
+                "InternetGatewayId": {
+                    "Ref": "ec2InternetGateway"
+                }
+            }
+        },
+        "ec2routetable": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "ec2vpc"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "public"
+                    }
+                ]
+            }
+        },  
+        "igwroute": {
+            "Type": "AWS::EC2::Route",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "ec2routetable"
+                },
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "GatewayId": {
+                    "Ref": "ec2InternetGateway"
+                }
+            }
+        },
+        "devtopublic": {
+            "Description": "associate dev subnet to public routable",
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "ec2routetable"
+                },
+                "SubnetId": {
+                    "Ref": "dev"
+                }
+            }
+        },  
+        "devsec": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "creating dev SecurityGroup",
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 22,
+                        "ToPort": 22,
+                        "CidrIp": "0.0.0.0/0"
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 80,
+                        "ToPort": 80,
+                        "CidrIp": "0.0.0.0/0"
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 443,
+                        "ToPort": 443,
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "ec2vpc"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "devsg"
+                    }
+                ]
+            }
+        },
+        "devec2": {
+            "Type": "AWS::EC2::Instance",
+            "Properties": {
+                "ImageId": "ami-0f3a440bbcff3d043",
+                "InstanceType": {
+                    "Ref": "ec2instancetype"
+                },
+                "KeyName": {
+                    "Ref": "ec2key"
+                },
+                "NetworkInterfaces": [
+                    {
+                        "AssociatePublicIpAddress": true,
+                        "SubnetId": {
+                            "Ref": "dev"
+                        },
+                        "GroupSet": [
+                            {
+                                "Ref": "devsec"
+                            }
+                        ],
+                        "DeviceIndex": "0"
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Development"
+                    }
+                ]
+            }
+        },
+        "proec2": {
+            "Type": "AWS::EC2::Instance",
+            "Properties": {
+                "ImageId": "ami-0f3a440bbcff3d043",
+                "InstanceType": {
+                    "Ref": "ec2instancetype"
+                },
+                "KeyName": {
+                    "Ref": "ec2key"
+                },
+                "NetworkInterfaces": [
+                    {
+                        "AssociatePublicIpAddress": true,
+                        "SubnetId": {
+                            "Ref": "dev"
+                        },
+                        "GroupSet": [
+                            {
+                                "Ref": "devsec"
+                            }
+                        ],
+                        "DeviceIndex": "0"
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Production"
+                    }
+                ]
+            }
+        }
+    }
+}     
