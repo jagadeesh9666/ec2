@@ -26,12 +26,6 @@ variable "app_ec2_size" {
   default = "t2.micro"
 }
 
-variable "private_keypair" {
-  type        = string
-  description = "this is for ec2 login"
-  default     = "~/.ssh/id_rsa"
-
-}
 variable "subnet_azs" {
   type        = string
   description = "This is  azs"
